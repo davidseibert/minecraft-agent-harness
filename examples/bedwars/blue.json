@@ -1,0 +1,18 @@
+{
+  "host": "localhost",
+  "port": 25565,
+  "model": "openai/gpt-6.1-terra",
+  "objective": "Bed Wars. You are on the BLUE team; RED is the enemy. The arena floats at y 100 over the void: falling off kills you. Your base island is centred at 40 101 0, your bed is at 46 101 0, and your shop point is your spawn at 38 101 0. While your bed stands you respawn at base after dying; once it is broken your next death eliminates you. The RED base is at -40 101 0 with their bed at -46 101 0. Win by breaking the RED bed and then eliminating every RED player. When the clock runs out the team with more final kills wins, then beds still standing, then kills. Your base generator next to 38 101 4 drops iron often and gold slowly; the islands at 0 101 24 and 0 101 -24 drop diamonds and the centre island drops emeralds. Spend them with the buy tool near your spawn: iron, gold and emeralds buy items, diamonds buy team upgrades. bedwars_status shows the score, beds and time left. Islands are not connected, so bridge across with blocks. You wear blue leather armor and carry blue wool; enemy names start with Red. Message only your teammates. Until the game starts you wait in a sealed lobby with empty hands; at the start the referee moves everyone to their base at the same moment and hands out your kit.",
+  "stateDir": ".agent-state/bedwars-blue",
+  "sharedMachine": "local",
+  "toolsModule": "examples/bedwars/tools.mjs",
+  "durationMinutes": 30,
+  "agents": [
+    {
+      "name": "Blue1"
+    },
+    {
+      "name": "Blue2"
+    }
+  ]
+}

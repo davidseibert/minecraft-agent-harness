@@ -1,0 +1,12 @@
+{
+  "host": "localhost",
+  "port": 25565,
+  "model": "openai/gpt-6.1-terra",
+  "objective": "Build a small village together: at least three houses, a farm and a path between them.",
+  "sharedMachine": "local",
+  "agents": [
+    { "name": "Ada" },
+    { "name": "Bram" },
+    { "name": "Cleo", "personality": "Careful planner who writes everything down." }
+  ]
+}

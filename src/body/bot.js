@@ -1,0 +1,615 @@
+import { allowWhisper } from './chat-guard.js';
+import minecraftData from 'minecraft-data';
+import settings from '../skills/settings.js';
+import { createBot } from 'mineflayer';
+import prismarine_items from 'prismarine-item';
+import { pathfinder } from 'mineflayer-pathfinder';
+import { plugin as pvp } from 'mineflayer-pvp';
+import { plugin as collectblock } from 'mineflayer-collectblock';
+let mc_version;
+let mcdata = null;
+let Item = null;
+
+export const WOOD_TYPES = ['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'mangrove', 'cherry'];
+export const MATCHING_WOOD_BLOCKS = [
+    'log',
+    'planks',
+    'sign',
+    'boat',
+    'fence_gate',
+    'door',
+    'fence',
+    'slab',
+    'stairs',
+    'button',
+    'pressure_plate',
+    'trapdoor',
+];
+export const WOOL_COLORS = [
+    'white',
+    'orange',
+    'magenta',
+    'light_blue',
+    'yellow',
+    'lime',
+    'pink',
+    'gray',
+    'light_gray',
+    'cyan',
+    'purple',
+    'blue',
+    'brown',
+    'green',
+    'red',
+    'black',
+];
+
+const ASCII_MAP = [
+    [/[\u2010-\u2015\u2212]/g, '-'],
+    [/[\u2018\u2019\u201a\u201b\u2032]/g, "'"],
+    [/[\u201c\u201d\u201e\u201f\u2033]/g, '"'],
+    [/\u2026/g, '...'],
+    [/[\u2022\u00b7]/g, '*'],
+    [/\u00d7/g, 'x'],
+    [/\u2192/g, '->'],
+    [/\u2190/g, '<-'],
+    [/[\u00a0\u2000-\u200b\u202f\u205f\u3000]/g, ' '],
+];
+
+export function asciiSafe(text) {
+    let out = String(text ?? '');
+    for (const [pattern, replacement] of ASCII_MAP) out = out.replace(pattern, replacement);
+    return out
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\x20-\x7e]/g, '')
+        .replace(/ {2,}/g, ' ');
+}
+
+export function installAsciiChat(bot) {
+    if (typeof bot.chat !== 'function' || bot.chat.asciiSafe) return bot;
+    const rawChat = bot.chat.bind(bot);
+    const chat = message => rawChat(asciiSafe(message));
+    chat.asciiSafe = true;
+    bot.chat = chat;
+    if (typeof bot.whisper === 'function') {
+        const rawWhisper = bot.whisper.bind(bot);
+        bot.whisper = (username, message) => {
+            allowWhisper(bot._client ?? {}, username);
+            return rawWhisper(username, asciiSafe(message));
+        };
+    }
+    return bot;
+}
+
+export const MOVEMENT_PACKETS = new Set(['position', 'position_look', 'look']);
+
+export function throttleMovementPackets(client, intervalMs = 50, clock = { now: Date.now, setTimeout, clearTimeout }) {
+    const originalWrite = client.write.bind(client);
+    const pending = new Map();
+    let last = -Infinity,
+        timer = null;
+    const flush = () => {
+        timer = null;
+        last = clock.now();
+        const batch = [...pending.entries()];
+        pending.clear();
+        for (const [name, data] of batch) originalWrite(name, data);
+    };
+    client.write = function (name, data) {
+        if (!MOVEMENT_PACKETS.has(name)) return originalWrite(name, data);
+        const now = clock.now();
+        if (now - last >= intervalMs && !timer) {
+            last = now;
+            return originalWrite(name, data);
+        }
+        pending.delete(name);
+        pending.set(name, data);
+        timer ??= clock.setTimeout(flush, Math.max(0, intervalMs - (now - last)));
+    };
+    return client;
+}
+
+export function initBot(username) {
+    mc_version = settings.minecraft_version;
+    const options = {
+        username: username,
+        respawn: false,
+        host: settings.host,
+        port: settings.port,
+        auth: settings.auth,
+        version: mc_version,
+        checkTimeoutInterval: 60000,
+        hideErrors: true,
+    };
+    if (!mc_version || mc_version === 'auto') {
+        delete options.version;
+    }
+
+    const bot = createBot(options);
+
+    throttleMovementPackets(bot._client);
+    bot.once('login', () => installAsciiChat(bot));
+
+    const originalEmit = bot._client.emit.bind(bot._client);
+    bot._client.emit = function (event, ...args) {
+        if (event === 'error' && args[0]) {
+            const err = args[0];
+            const errStr = err instanceof Error ? err.message : String(err);
+            if (errStr.includes('PartialReadError')) {
+                console.warn('[mcdata] Suppressed PartialReadError:', errStr.substring(0, 120));
+                return true;
+            }
+        }
+        return originalEmit(event, ...args);
+    };
+
+    bot.loadPlugin(pathfinder);
+    bot.loadPlugin(pvp);
+    bot.loadPlugin(collectblock);
+    bot.once('resourcePack', () => {
+        bot.acceptResourcePack();
+    });
+
+    bot.once('login', () => {
+        mc_version = bot.version;
+        mcdata = minecraftData(mc_version);
+        Item = prismarine_items(mc_version);
+    });
+
+    return bot;
+}
+
+export function isHuntable(mob) {
+    if (!mob || !mob.name) return false;
+    const animals = ['chicken', 'cow', 'llama', 'mooshroom', 'pig', 'rabbit', 'sheep'];
+    return animals.includes(mob.name.toLowerCase()) && !mob.metadata[16];
+}
+
+export function isHostile(mob) {
+    if (!mob || !mob.name) return false;
+    return (mob.type === 'mob' || mob.type === 'hostile') && mob.name !== 'iron_golem' && mob.name !== 'snow_golem';
+}
+
+export function mustCollectManually(blockName) {
+    const full_names = [
+        'wheat',
+        'carrots',
+        'potatoes',
+        'beetroots',
+        'nether_wart',
+        'cocoa',
+        'sugar_cane',
+        'kelp',
+        'short_grass',
+        'fern',
+        'tall_grass',
+        'bamboo',
+        'poppy',
+        'dandelion',
+        'blue_orchid',
+        'allium',
+        'azure_bluet',
+        'oxeye_daisy',
+        'cornflower',
+        'lilac',
+        'wither_rose',
+        'lily_of_the_valley',
+        'wither_rose',
+        'lever',
+        'redstone_wire',
+        'lantern',
+    ];
+    const partial_names = [
+        'sapling',
+        'torch',
+        'button',
+        'carpet',
+        'pressure_plate',
+        'mushroom',
+        'tulip',
+        'bush',
+        'vines',
+        'fern',
+    ];
+    return (
+        full_names.includes(blockName.toLowerCase()) ||
+        partial_names.some(partial => blockName.toLowerCase().includes(partial))
+    );
+}
+
+export function getItemId(itemName) {
+    let item = mcdata.itemsByName[itemName];
+    if (item) {
+        return item.id;
+    }
+    return null;
+}
+
+export function getItemName(itemId) {
+    let item = mcdata.items[itemId];
+    if (item) {
+        return item.name;
+    }
+    return null;
+}
+
+export function getBlockId(blockName) {
+    let block = mcdata.blocksByName[blockName];
+    if (block) {
+        return block.id;
+    }
+    return null;
+}
+
+export function getBlockName(blockId) {
+    let block = mcdata.blocks[blockId];
+    if (block) {
+        return block.name;
+    }
+    return null;
+}
+
+export function getEntityId(entityName) {
+    let entity = mcdata.entitiesByName[entityName];
+    if (entity) {
+        return entity.id;
+    }
+    return null;
+}
+
+export function getAllItems(ignore) {
+    if (!ignore) {
+        ignore = [];
+    }
+    let items = [];
+    for (const itemId in mcdata.items) {
+        const item = mcdata.items[itemId];
+        if (!ignore.includes(item.name)) {
+            items.push(item);
+        }
+    }
+    return items;
+}
+
+export function getAllItemIds(ignore) {
+    const items = getAllItems(ignore);
+    let itemIds = [];
+    for (const item of items) {
+        itemIds.push(item.id);
+    }
+    return itemIds;
+}
+
+export function getAllBlocks(ignore) {
+    if (!ignore) {
+        ignore = [];
+    }
+    let blocks = [];
+    for (const blockId in mcdata.blocks) {
+        const block = mcdata.blocks[blockId];
+        if (!ignore.includes(block.name)) {
+            blocks.push(block);
+        }
+    }
+    return blocks;
+}
+
+export function getAllBlockIds(ignore) {
+    const blocks = getAllBlocks(ignore);
+    let blockIds = [];
+    for (const block of blocks) {
+        blockIds.push(block.id);
+    }
+    return blockIds;
+}
+
+export function getAllBiomes() {
+    return mcdata.biomes;
+}
+
+export function getItemCraftingRecipes(itemName) {
+    let itemId = getItemId(itemName);
+    if (!mcdata.recipes[itemId]) {
+        return null;
+    }
+
+    let recipes = [];
+    for (let r of mcdata.recipes[itemId]) {
+        let recipe = {};
+        let ingredients = [];
+        if (r.ingredients) {
+            ingredients = r.ingredients;
+        } else if (r.inShape) {
+            ingredients = r.inShape.flat();
+        }
+        for (let ingredient of ingredients) {
+            let ingredientName = getItemName(ingredient);
+            if (ingredientName === null) continue;
+            if (!recipe[ingredientName]) recipe[ingredientName] = 0;
+            recipe[ingredientName]++;
+        }
+        recipes.push([recipe, { craftedCount: r.result.count }]);
+    }
+    const commonItems = ['oak_planks', 'oak_log', 'coal', 'cobblestone'];
+    recipes.sort((a, b) => {
+        let commonCountA = Object.keys(a[0])
+            .filter(key => commonItems.includes(key))
+            .reduce((acc, key) => acc + a[0][key], 0);
+        let commonCountB = Object.keys(b[0])
+            .filter(key => commonItems.includes(key))
+            .reduce((acc, key) => acc + b[0][key], 0);
+        return commonCountB - commonCountA;
+    });
+
+    return recipes;
+}
+
+export function isSmeltable(itemName) {
+    const misc_smeltables = [
+        'beef',
+        'chicken',
+        'cod',
+        'mutton',
+        'porkchop',
+        'rabbit',
+        'salmon',
+        'tropical_fish',
+        'potato',
+        'kelp',
+        'sand',
+        'cobblestone',
+        'clay_ball',
+    ];
+    return itemName.includes('raw') || itemName.includes('log') || misc_smeltables.includes(itemName);
+}
+
+export function getSmeltingFuel(bot) {
+    let fuel = bot.inventory.items().find(i => i.name === 'coal' || i.name === 'charcoal' || i.name === 'blaze_rod');
+    if (fuel) return fuel;
+    fuel = bot.inventory.items().find(i => i.name.includes('log') || i.name.includes('planks'));
+    if (fuel) return fuel;
+    return bot.inventory.items().find(i => i.name === 'coal_block' || i.name === 'lava_bucket');
+}
+
+export function getFuelSmeltOutput(fuelName) {
+    if (fuelName === 'coal' || fuelName === 'charcoal') return 8;
+    if (fuelName === 'blaze_rod') return 12;
+    if (fuelName.includes('log') || fuelName.includes('planks')) return 1.5;
+    if (fuelName === 'coal_block') return 80;
+    if (fuelName === 'lava_bucket') return 100;
+    return 0;
+}
+
+export function getItemSmeltingIngredient(itemName) {
+    return {
+        baked_potato: 'potato',
+        steak: 'raw_beef',
+        cooked_chicken: 'raw_chicken',
+        cooked_cod: 'raw_cod',
+        cooked_mutton: 'raw_mutton',
+        cooked_porkchop: 'raw_porkchop',
+        cooked_rabbit: 'raw_rabbit',
+        cooked_salmon: 'raw_salmon',
+        dried_kelp: 'kelp',
+        iron_ingot: 'raw_iron',
+        gold_ingot: 'raw_gold',
+        copper_ingot: 'raw_copper',
+        glass: 'sand',
+    }[itemName];
+}
+
+export function getItemBlockSources(itemName) {
+    let itemId = getItemId(itemName);
+    let sources = [];
+    for (let block of getAllBlocks()) {
+        if (block.drops.includes(itemId)) {
+            sources.push(block.name);
+        }
+    }
+    return sources;
+}
+
+export function getItemAnimalSource(itemName) {
+    return {
+        raw_beef: 'cow',
+        raw_chicken: 'chicken',
+        raw_cod: 'cod',
+        raw_mutton: 'sheep',
+        raw_porkchop: 'pig',
+        raw_rabbit: 'rabbit',
+        raw_salmon: 'salmon',
+        leather: 'cow',
+        wool: 'sheep',
+    }[itemName];
+}
+
+export function getBlockTool(blockName) {
+    let block = mcdata.blocksByName[blockName];
+    if (!block || !block.harvestTools) {
+        return null;
+    }
+    return getItemName(Object.keys(block.harvestTools)[0]);
+}
+
+export function makeItem(name, amount = 1) {
+    return new Item(getItemId(name), amount);
+}
+
+export function ingredientsFromPrismarineRecipe(recipe) {
+    let requiredIngedients = {};
+    if (recipe.inShape)
+        for (const ingredient of recipe.inShape.flat()) {
+            if (ingredient.id < 0) continue;
+            const ingredientName = getItemName(ingredient.id);
+            requiredIngedients[ingredientName] ??= 0;
+            requiredIngedients[ingredientName] += ingredient.count;
+        }
+    if (recipe.ingredients)
+        for (const ingredient of recipe.ingredients) {
+            if (ingredient.id < 0) continue;
+            const ingredientName = getItemName(ingredient.id);
+            requiredIngedients[ingredientName] ??= 0;
+            requiredIngedients[ingredientName] -= ingredient.count;
+        }
+    return requiredIngedients;
+}
+
+export function calculateLimitingResource(availableItems, requiredItems, discrete = true) {
+    let limitingResource = null;
+    let num = Infinity;
+    for (const itemType in requiredItems) {
+        if (availableItems[itemType] < requiredItems[itemType] * num) {
+            limitingResource = itemType;
+            num = availableItems[itemType] / requiredItems[itemType];
+        }
+    }
+    if (discrete) num = Math.floor(num);
+    return { num, limitingResource };
+}
+
+let loopingItems = new Set();
+
+export function initializeLoopingItems() {
+    loopingItems = new Set([
+        'coal',
+        'wheat',
+        'bone_meal',
+        'diamond',
+        'emerald',
+        'raw_iron',
+        'raw_gold',
+        'redstone',
+        'blue_wool',
+        'packed_mud',
+        'raw_copper',
+        'iron_ingot',
+        'dried_kelp',
+        'gold_ingot',
+        'slime_ball',
+        'black_wool',
+        'quartz_slab',
+        'copper_ingot',
+        'lapis_lazuli',
+        'honey_bottle',
+        'rib_armor_trim_smithing_template',
+        'eye_armor_trim_smithing_template',
+        'vex_armor_trim_smithing_template',
+        'dune_armor_trim_smithing_template',
+        'host_armor_trim_smithing_template',
+        'tide_armor_trim_smithing_template',
+        'wild_armor_trim_smithing_template',
+        'ward_armor_trim_smithing_template',
+        'coast_armor_trim_smithing_template',
+        'spire_armor_trim_smithing_template',
+        'snout_armor_trim_smithing_template',
+        'shaper_armor_trim_smithing_template',
+        'netherite_upgrade_smithing_template',
+        'raiser_armor_trim_smithing_template',
+        'sentry_armor_trim_smithing_template',
+        'silence_armor_trim_smithing_template',
+        'wayfinder_armor_trim_smithing_template',
+    ]);
+}
+
+export function getDetailedCraftingPlan(targetItem, count = 1, current_inventory = {}) {
+    initializeLoopingItems();
+    if (!targetItem || count <= 0 || !getItemId(targetItem)) {
+        return 'Invalid input. Please provide a valid item name and positive count.';
+    }
+
+    if (isBaseItem(targetItem)) {
+        const available = current_inventory[targetItem] || 0;
+        if (available >= count) return 'You have all required items already in your inventory!';
+        return `${targetItem} is a base item, you need to find ${count - available} more in the world`;
+    }
+
+    const inventory = { ...current_inventory };
+    const leftovers = {};
+    const plan = craftItem(targetItem, count, inventory, leftovers);
+    return formatPlan(targetItem, plan);
+}
+
+function isBaseItem(item) {
+    return loopingItems.has(item) || getItemCraftingRecipes(item) === null;
+}
+
+function craftItem(item, count, inventory, leftovers, crafted = { required: {}, steps: [], leftovers: {} }) {
+    const availableInv = inventory[item] || 0;
+    const availableLeft = leftovers[item] || 0;
+    const totalAvailable = availableInv + availableLeft;
+
+    if (totalAvailable >= count) {
+        const useFromLeft = Math.min(availableLeft, count);
+        leftovers[item] = availableLeft - useFromLeft;
+
+        const remainingNeeded = count - useFromLeft;
+        if (remainingNeeded > 0) {
+            inventory[item] = availableInv - remainingNeeded;
+        }
+        return crafted;
+    }
+
+    const stillNeeded = count - totalAvailable;
+    if (availableLeft > 0) leftovers[item] = 0;
+    if (availableInv > 0) inventory[item] = 0;
+
+    if (isBaseItem(item)) {
+        crafted.required[item] = (crafted.required[item] || 0) + stillNeeded;
+        return crafted;
+    }
+
+    const recipe = getItemCraftingRecipes(item)?.[0];
+    if (!recipe) {
+        crafted.required[item] = stillNeeded;
+        return crafted;
+    }
+
+    const [ingredients, result] = recipe;
+    const craftedPerRecipe = result.craftedCount;
+    const batchCount = Math.ceil(stillNeeded / craftedPerRecipe);
+    const totalProduced = batchCount * craftedPerRecipe;
+
+    if (totalProduced > stillNeeded) {
+        leftovers[item] = (leftovers[item] || 0) + (totalProduced - stillNeeded);
+    }
+
+    for (const [ingredientName, ingredientCount] of Object.entries(ingredients)) {
+        const totalIngredientNeeded = ingredientCount * batchCount;
+        craftItem(ingredientName, totalIngredientNeeded, inventory, leftovers, crafted);
+    }
+
+    const stepIngredients = Object.entries(ingredients)
+        .map(([name, amount]) => `${amount * batchCount} ${name}`)
+        .join(' + ');
+    crafted.steps.push(`Craft ${stepIngredients} -> ${totalProduced} ${item}`);
+
+    return crafted;
+}
+
+function formatPlan(targetItem, { required, steps, leftovers }) {
+    const lines = [];
+
+    if (Object.keys(required).length > 0) {
+        lines.push('You are missing the following items:');
+        Object.entries(required).forEach(([item, count]) => lines.push(`- ${count} ${item}`));
+        lines.push("\nOnce you have these items, here's your crafting plan:");
+    } else {
+        lines.push('You have all items required to craft this item!');
+        lines.push("Here's your crafting plan:");
+    }
+
+    lines.push('');
+    lines.push(...steps);
+
+    if (Object.keys(required).some(item => item.includes('oak')) && !targetItem.includes('oak')) {
+        lines.push('Note: Any varient of wood can be used for this recipe.');
+    }
+
+    if (Object.keys(leftovers).length > 0) {
+        lines.push('\nYou will have leftover:');
+        Object.entries(leftovers).forEach(([item, count]) => lines.push(`- ${count} ${item}`));
+    }
+
+    return lines.join('\n');
+}

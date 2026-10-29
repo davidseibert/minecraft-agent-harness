@@ -1,0 +1,68 @@
+{
+  "durationMinutes": 20,
+  "startWhenOnline": true,
+  "startTimeoutSeconds": 180,
+  "refereePort": 8765,
+  "lobby": [0, 150, -40],
+  "generators": { "ironEverySeconds": 2, "goldEverySeconds": 8, "diamondEverySeconds": 30, "emeraldEverySeconds": 60 },
+  "diamondGenerators": [
+    [0, 101, -24],
+    [0, 101, 24]
+  ],
+  "emeraldGenerators": [[0, 101, 0]],
+  "teams": {
+    "red": {
+      "players": ["Red1", "Red2"],
+      "color": 16711680,
+      "bed": { "head": [-46, 101, 0], "foot": [-45, 101, 0], "facing": "west" },
+      "spawn": [-38, 101, 0],
+      "generator": [-38, 101, 4],
+      "island": { "from": [-48, 99, -8], "to": [-32, 100, 8], "block": "red_concrete" }
+    },
+    "blue": {
+      "players": ["Blue1", "Blue2"],
+      "color": 255,
+      "bed": { "head": [46, 101, 0], "foot": [45, 101, 0], "facing": "east" },
+      "spawn": [38, 101, 0],
+      "generator": [38, 101, 4],
+      "island": { "from": [32, 99, -8], "to": [48, 100, 8], "block": "blue_concrete" }
+    }
+  },
+  "islands": [
+    { "from": [-2, 99, -26], "to": [2, 100, -22], "block": "end_stone" },
+    { "from": [-2, 99, 22], "to": [2, 100, 26], "block": "end_stone" },
+    { "from": [-4, 99, -4], "to": [4, 100, 4], "block": "end_stone" }
+  ],
+  "shop": {
+    "wool": { "cost": ["iron_ingot", 4], "gives": [["team_wool", 16]], "label": "16 team wool" },
+    "end_stone": { "cost": ["iron_ingot", 24], "gives": [["end_stone", 12]], "label": "12 end stone" },
+    "planks": { "cost": ["gold_ingot", 4], "gives": [["oak_planks", 16]], "label": "16 oak planks" },
+    "obsidian": { "cost": ["emerald", 4], "gives": [["obsidian", 4]], "label": "4 obsidian" },
+    "stone_sword": { "cost": ["iron_ingot", 10], "gives": [["stone_sword", 1]], "label": "stone sword" },
+    "iron_sword": { "cost": ["gold_ingot", 7], "gives": [["iron_sword", 1]], "label": "iron sword" },
+    "diamond_sword": { "cost": ["emerald", 4], "gives": [["diamond_sword", 1]], "label": "diamond sword" },
+    "chainmail_armor": {
+      "cost": ["iron_ingot", 24],
+      "armor": "chainmail",
+      "label": "chainmail leggings and boots, worn at once"
+    },
+    "iron_armor": { "cost": ["gold_ingot", 12], "armor": "iron", "label": "iron leggings and boots, worn at once" },
+    "diamond_armor": {
+      "cost": ["emerald", 6],
+      "armor": "diamond",
+      "label": "diamond leggings and boots, worn at once"
+    },
+    "wooden_pickaxe": { "cost": ["iron_ingot", 10], "gives": [["wooden_pickaxe", 1]], "label": "wooden pickaxe" },
+    "iron_pickaxe": { "cost": ["gold_ingot", 3], "gives": [["iron_pickaxe", 1]], "label": "iron pickaxe" },
+    "shears": { "cost": ["iron_ingot", 20], "gives": [["shears", 1]], "label": "shears (fast on wool)" },
+    "golden_apple": { "cost": ["gold_ingot", 3], "gives": [["golden_apple", 1]], "label": "golden apple" },
+    "bow": { "cost": ["gold_ingot", 12], "gives": [["bow", 1]], "label": "bow" },
+    "arrows": { "cost": ["gold_ingot", 2], "gives": [["arrow", 8]], "label": "8 arrows" }
+  },
+  "upgrades": {
+    "sharpness": { "costs": [4], "label": "Sharpness I on every sword your team holds, now and later" },
+    "protection": { "costs": [2, 4, 8], "label": "next Protection level (max III) on all armor your team wears" },
+    "forge": { "costs": [2, 4], "label": "your base generator runs 50% faster per level (max 2)" },
+    "heal_pool": { "costs": [1], "label": "Regeneration for teammates within 10 blocks of your base spawn" }
+  }
+}

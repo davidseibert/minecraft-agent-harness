@@ -1,0 +1,13 @@
+**/.git
+**/node_modules
+**/.agent-state
+server
+server-*
+**/.env
+**/.env.*
+!**/.env.example
+**/*.log
+**/server.properties
+**/*.pem
+**/*.key
+**/.DS_Store

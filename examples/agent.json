@@ -1,0 +1,10 @@
+{
+  "host": "localhost",
+  "port": 25565,
+  "name": "Scout",
+  "model": "openai/gpt-6.1-terra",
+  "objective": "Explore within 200 blocks of spawn, map caves and villages in your notes, and report back in chat.",
+  "gameMode": "survival",
+  "sandbox": "local",
+  "durationMinutes": 60
+}

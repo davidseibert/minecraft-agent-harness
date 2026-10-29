@@ -1,0 +1,6 @@
+node_modules
+package-lock.json
+patches
+src/vision/patches
+test/fixtures
+.agent-state

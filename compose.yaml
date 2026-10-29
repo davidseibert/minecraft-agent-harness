@@ -1,0 +1,35 @@
+services:
+  server:
+    image: itzg/minecraft-server:java21
+    environment:
+      EULA: 'TRUE'
+      TYPE: PAPER
+      VERSION: '1.21.6'
+      ONLINE_MODE: 'FALSE'
+      DIFFICULTY: easy
+      SPAWN_PROTECTION: '0'
+      MEMORY: 2G
+    ports:
+      - '25565:25565'
+    volumes:
+      - server-data:/data
+
+  agent:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MC_HOST: server
+      MC_PORT: '25565'
+      AGENT_OBJECTIVE: ${AGENT_OBJECTIVE:-Gather wood and build a small shelter near spawn}
+    depends_on:
+      server:
+        condition: service_healthy
+    volumes:
+      - agent-state:/data
+    restart: on-failure
+
+volumes:
+  server-data:
+  agent-state:
