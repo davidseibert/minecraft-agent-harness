@@ -3,6 +3,7 @@
 const EXTRA_MODELS = {
     openai: {
         'gpt-6.1-terra': { like: 'gpt-5.6-terra', name: 'GPT-6.1 Terra' },
+        'gpt-6-luna': { like: 'gpt-5.6-luna', name: 'GPT-6 Luna' },
     },
 };
 

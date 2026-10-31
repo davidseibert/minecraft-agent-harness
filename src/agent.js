@@ -180,7 +180,8 @@ export async function startAgent(settings, options = {}) {
         record('message_received', { from, chars: text.length });
         const active = actionRunner.status.active;
         const now = Date.now();
-        if (active && now - (lastInterruptBy.get(from) ?? 0) > 15000) {
+        // Teammates talk constantly; let their messages wait until the current action ends.
+        if (!team && active && now - (lastInterruptBy.get(from) ?? 0) > 15000) {
             lastInterruptBy.set(from, now);
             actionRunner.interrupt(`Interrupted: private message from ${from}`);
         }
@@ -188,7 +189,10 @@ export async function startAgent(settings, options = {}) {
     const messageAlert = () => {
         if (!pendingMessages.length) return null;
         const lines = pendingMessages.splice(0).map(m => `${m.from}: "${m.text}"`);
-        return `NEW PRIVATE MESSAGE${lines.length > 1 ? 'S' : ''} (also in read_dms): ${lines.join(' | ')}. The sender is waiting for an answer: reply now with send_dm${team ? '' : ' (players receive it as a whisper)'}, then carry on with your work.`;
+        const reply = team
+            ? 'Reply with send_dm only if it asks you something or changes the plan. Do not send thanks, acknowledgements or status updates. Carry on with your work.'
+            : 'The sender is waiting for an answer: reply now with send_dm (players receive it as a whisper), then carry on with your work.';
+        return `NEW PRIVATE MESSAGE${lines.length > 1 ? 'S' : ''} (also in read_dms): ${lines.join(' | ')}. ${reply}`;
     };
     process.once('SIGINT', () => void finish('operator_stop'));
     process.once('SIGTERM', () => void finish('operator_stop'));
@@ -554,7 +558,7 @@ export async function startAgent(settings, options = {}) {
                           sharedDir: c.sharedRoot,
                           privateDir: path.join(root, 'workspace', 'shell-bin'),
                           statePath: path.join(root, 'e2b-sandbox.json'),
-                          sandboxTimeoutMs: 3 * 3600000,
+                          sandboxTimeoutMs: 3600000,
                       })
                     : sandbox.kind === 'docker'
                       ? createDockerBackend({

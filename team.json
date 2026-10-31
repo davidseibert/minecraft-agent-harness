@@ -1,0 +1,13 @@
+{
+  "staggerSeconds": 5,
+  "model": "gateway-anthropic/claude-haiku-5-5",
+  "modelsFile": "/config/gateway-models.json",
+  "objective": "Build a small village together: at least three houses, a farm and a path between them. Always use `go_through_door` to pass closed doors. On this server you keep your inventory when you die. Items on the ground belong to nobody: walk over them to pick them up, and do it soon because they vanish after 5 minutes. Before dark, craft a sword and get under cover or stay ready to fight, because hostile mobs spawn at night. Do not wait for someone to ask: when your task is done, pick the next unfinished part of the village and start on it.",
+  "sharedMachine": "local",
+  "agents": [
+    { "name": "Ada", "personality": "Obsessive resource gatherer who shares spoils generously." },
+    { "name": "Bram", "personality": "Protector figure who always keeps a good weapon and scans for threats." },
+    { "name": "Cleo", "personality": "Careful planner who writes everything down." },
+    { "name": "Hilda", "personality": "Practical builder who sees projects through to the end." }
+  ]
+}

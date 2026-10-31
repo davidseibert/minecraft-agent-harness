@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 export const ASSETS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets');
 export const cap = (text, max) => (Buffer.byteLength(text) > max ? `${text.slice(0, max)}\n…[truncated]` : text);
 
-export function startPoller({ relayUrl, token, invoke, log, onDead }) {
+export function startPoller({ relayUrl, token, invoke, log, onDead, headers = {} }) {
     const controller = new AbortController();
     void (async () => {
         let backoff = 500,
@@ -15,7 +15,7 @@ export function startPoller({ relayUrl, token, invoke, log, onDead }) {
         while (!controller.signal.aborted) {
             try {
                 const r = await fetch(`${relayUrl}/next`, {
-                    headers: { 'x-token': token },
+headers: { 'x-token': token, ...headers },
                     signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]),
                 });
                 if (r.status === 204) {
@@ -35,7 +35,7 @@ export function startPoller({ relayUrl, token, invoke, log, onDead }) {
                 }
                 await fetch(`${relayUrl}/result`, {
                     method: 'POST',
-                    headers: { 'x-token': token, 'content-type': 'application/json' },
+                    headers: { 'x-token': token, 'content-type': 'application/json', ...headers },
                     body: JSON.stringify(out),
                     signal: AbortSignal.timeout(10000),
                 });
@@ -62,11 +62,11 @@ export function startPoller({ relayUrl, token, invoke, log, onDead }) {
     return () => controller.abort();
 }
 
-export async function waitHealthy(relayUrl, ms = 15000) {
+export async function waitHealthy(relayUrl, ms = 15000, headers = {}) {
     const end = Date.now() + ms;
     while (Date.now() < end) {
         try {
-            const r = await fetch(`${relayUrl}/health`, { signal: AbortSignal.timeout(2000) });
+            const r = await fetch(`${relayUrl}/health`, { signal: AbortSignal.timeout(2000), headers });
             if (r.ok) return;
         } catch {}
         await new Promise(r => setTimeout(r, 250));
@@ -189,6 +189,7 @@ export function createE2bBackend({
         pausing = null,
         waking = null;
     const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const access = () => ({ 'e2b-traffic-access-token': sbx.trafficAccessToken })
     const atCap = e => /concurrent|rate limit|429|too many/i.test(String(e?.message ?? e));
     const withCapRetry = async (fn, log) => {
         const until = Date.now() + capWaitMs;
@@ -228,7 +229,7 @@ export function createE2bBackend({
                 pollArgs?.log?.(`e2b sandbox ${sbx.sandboxId} paused after idle`);
             } catch (e) {
                 pollArgs?.log?.(`e2b pause failed: ${String(e?.message ?? e).slice(0, 160)}`);
-                if (pollArgs) stopPoll = startPoller({ relayUrl, token, ...pollArgs, onDead: restartRelay });
+                if (pollArgs) stopPoll = startPoller({ relayUrl, token, ...pollArgs, onDead: restartRelay, headers: access() });
             }
         })().finally(() => {
             pausing = null;
@@ -244,7 +245,7 @@ export function createE2bBackend({
                 await sbx.commands.run("pkill -f '/opt/harness/relay.cjs' || true", { timeoutMs: 15000 });
             } catch {}
             await startRelay();
-            stopPoll = startPoller({ relayUrl, token, ...pollArgs, onDead: restartRelay });
+            stopPoll = startPoller({ relayUrl, token, ...pollArgs, onDead: restartRelay, headers: access() });
             pollArgs?.log?.(`e2b sandbox ${id} resumed`);
         })().finally(() => {
             waking = null;
@@ -266,7 +267,7 @@ export function createE2bBackend({
             background: true,
             timeoutMs: 0,
         });
-        await waitHealthy(relayUrl, 30000);
+        await waitHealthy(relayUrl, 30000, access());
     };
     const restartRelay = () =>
         (restarting ??= (async () => {
@@ -330,7 +331,7 @@ export function createE2bBackend({
             });
             relayUrl = `${relayScheme}://${sbx.getHost(7777)}`;
             await startRelay();
-            stopPoll = startPoller({ relayUrl, token, invoke, log, onDead: restartRelay });
+            stopPoll = startPoller({ relayUrl, token, invoke, log, onDead: restartRelay, headers: access() });
             keepalive = setInterval(refresh, Math.max(60000, Math.floor(sandboxTimeoutMs / 3)));
             keepalive.unref?.();
             await this.syncShared();

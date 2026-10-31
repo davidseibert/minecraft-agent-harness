@@ -77,7 +77,8 @@ docker compose up
 ```
 
 You get a Paper server on `localhost:25565` and one agent. Change what it does with `AGENT_OBJECTIVE` in `.env`. State
-goes in the `agent-state` volume.
+goes in the `agent-state` volume. The server includes an [in-game monitor](docs/monitoring.md) for operators, with a
+sidebar, a feed of DMs and failures, and read-only inventories.
 
 Already have a server? Just run the agent image:
 
@@ -109,6 +110,7 @@ More docs:
 - [Configuration](docs/configuration.md): models, auth, sandboxes, vision, where files go
 - [Tools](docs/tools.md): everything an agent can do
 - [Architecture](docs/architecture.md): how the code fits together
+- [Monitoring](docs/monitoring.md): watching agents from inside the game
 
 ## Development
 
