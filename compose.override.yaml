@@ -1,5 +1,21 @@
 services:
+  server:
+    environment:
+      RCON_CMDS_STARTUP: gamerule keepInventory true
+      # A new level beside the original "world", which stays in server-data untouched.
+      LEVEL: world-haiku
+
   agent:
     command: ["team", "/config/team.json"]
+    # Values in .env override team.json, so blank these to let each agent pick its own model.
+    environment:
+      AGENT_MODEL: ''
+      MODEL_BASE_URL: ''
     volumes:
       - ./team.json:/config/team.json:ro
+      - ./gateway-models.json:/config/gateway-models.json:ro
+
+volumes:
+  # Separate agent memories for this world. Remove this and LEVEL to go back to the original team.
+  agent-state:
+    name: minecraft-agent-harness_agent-state-haiku
