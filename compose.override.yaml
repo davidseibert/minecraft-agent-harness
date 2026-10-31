@@ -1,0 +1,5 @@
+services:
+  agent:
+    command: ["team", "/config/team.json"]
+    volumes:
+      - ./team.json:/config/team.json:ro

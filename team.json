@@ -1,0 +1,10 @@
+{
+  "staggerSeconds": 5,
+  "objective": "Build a small village together: at least three houses, a farm and a path between them. Always use `go_through_door` to pass closed doors.",
+  "sharedMachine": "local",
+  "agents": [
+    { "name": "Ada", "personality": "Obsessive resource gatherer who shares spoils generously." },
+    { "name": "Bram", "personality": "Protector figure who always keeps a good weapon and scans for threats." },
+    { "name": "Cleo", "personality": "Careful planner who writes everything down." }
+  ]
+}
