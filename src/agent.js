@@ -554,7 +554,7 @@ export async function startAgent(settings, options = {}) {
                           sharedDir: c.sharedRoot,
                           privateDir: path.join(root, 'workspace', 'shell-bin'),
                           statePath: path.join(root, 'e2b-sandbox.json'),
-                          sandboxTimeoutMs: 3 * 3600000,
+                          sandboxTimeoutMs: 3600000,
                       })
                     : sandbox.kind === 'docker'
                       ? createDockerBackend({
