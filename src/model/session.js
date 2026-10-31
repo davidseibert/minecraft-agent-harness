@@ -183,6 +183,30 @@ export function markCacheBreakpoint(payload) {
     }
     return payload;
 }
+// The Messages API marks the newest block, which is the observation. It changes on every call, so the
+// history behind it would never be read back. Mark the last stable user block instead.
+export function moveMessagesBreakpoint(payload) {
+    const messages = payload?.messages;
+    if (!Array.isArray(messages)) return payload;
+    const last = messages.length - 1;
+    const parts = messages[last]?.content;
+    if (messages[last]?.role !== 'user' || !Array.isArray(parts) || !parts.at(-1)?.cache_control) return payload;
+    const { cache_control, ...observation } = parts.at(-1);
+    const copy = [...messages];
+    copy[last] = { ...messages[last], content: [...parts.slice(0, -1), observation] };
+    for (let i = last; i >= 0; i--) {
+        const item = copy[i];
+        if (item?.role !== 'user') continue;
+        const blocks = typeof item.content === 'string' ? [{ type: 'text', text: item.content }] : item.content;
+        const index = blocks.length - (i === last ? 2 : 1);
+        if (index < 0) continue;
+        const marked = [...blocks];
+        marked[index] = { ...blocks[index], cache_control };
+        copy[i] = { ...item, content: marked };
+        return { ...payload, messages: copy };
+    }
+    return payload;
+}
 
 const STATE_TYPE = 'minecraft-scheduler-v1';
 const defaultClock = { now: () => Date.now(), setTimeout, clearTimeout };
@@ -530,7 +554,7 @@ class MinecraftSession {
         const originalPayload = this.session.agent.onPayload?.bind(this.session.agent);
         this.session.agent.onPayload = async (payload, model) => {
             const base = originalPayload ? ((await originalPayload(payload, model)) ?? payload) : payload;
-            if (!this.compatible) return base;
+            if (!this.compatible) return this.options.cacheBreakpoint === false ? base : moveMessagesBreakpoint(base);
             if (/claude/i.test(String(base?.model ?? model?.id ?? ''))) return anthropicPayload(base);
             return this.options.cacheBreakpoint === false ? base : markCacheBreakpoint(base);
         };
